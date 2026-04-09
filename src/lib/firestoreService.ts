@@ -12,7 +12,8 @@ import {
   where, 
   orderBy,
   Timestamp,
-  increment
+  increment,
+  limit
 } from 'firebase/firestore';
 
 export enum OperationType {
@@ -119,13 +120,35 @@ export const firestoreService = {
   async getGameByCode(code: string) {
     const path = 'games';
     try {
-      const q = query(collection(db, 'games'), where('code', '==', code), where('status', '!=', 'finished'));
+      const q = query(collection(db, 'games'), where('code', '==', code), where('status', '!=', 'finished'), orderBy('status'), limit(1));
       const snap = await getDocs(q);
       if (snap.empty) return null;
       return { id: snap.docs[0].id, ...snap.docs[0].data() };
     } catch (error) {
       handleFirestoreError(error, OperationType.LIST, path);
     }
+  },
+
+  async getTeacherGames(teacherId: string) {
+    const path = 'games';
+    try {
+      const q = query(
+        collection(db, 'games'), 
+        where('teacherId', '==', teacherId), 
+        orderBy('createdAt', 'desc'),
+        limit(10)
+      );
+      const snap = await getDocs(q);
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, path);
+    }
+  },
+
+  async getStudentSubmissions(userId: string) {
+    const path = 'submissions_history'; // We'd need a way to query across subcollections or a flat collection
+    // For now, let's just provide a placeholder or skip if too complex for this structure
+    return [];
   },
 
   subscribeToGame(gameId: string, callback: (data: any) => void) {

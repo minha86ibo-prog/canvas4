@@ -300,7 +300,7 @@ function MainScreen({
           >
             <div className="inline-flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full text-sm font-black mb-8 shadow-xl shadow-blue-200">
               <Sparkles className="w-4 h-4" />
-              진짜 미술 감상 게임
+              실시간 미술 교육 플랫폼
             </div>
             <h1 className="text-7xl md:text-9xl font-black tracking-tighter text-slate-900 mb-8 leading-[0.9]">
               ACE <span className="text-blue-600">CANVAS</span>
@@ -429,18 +429,20 @@ function MainScreen({
                       <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center font-black text-xl">
                         {profile.name[0]}
                       </div>
-                      <div>
-                        <p className="text-xs font-black text-slate-500 uppercase tracking-widest">WELCOME BACK</p>
+                      <div className="flex-1">
+                        <p className="text-xs font-black text-slate-500 uppercase tracking-widest">LOGGED IN AS</p>
                         <p className="text-lg font-black">{profile.name} 선생님</p>
                       </div>
                     </div>
+                    
                     <Button 
                       className="w-full bg-blue-600 hover:bg-blue-700 text-white py-10 rounded-3xl text-2xl font-black shadow-2xl shadow-blue-900/20 transition-all hover:scale-[1.02]" 
                       onClick={onCreateGame}
                     >
                       <Sparkles className="w-6 h-6 mr-3" />
-                      수업 시작하기
+                      새 수업 시작하기
                     </Button>
+
                     <Button variant="ghost" className="w-full text-slate-500 hover:text-white font-bold" onClick={onLogout}>
                       <LogOut className="w-4 h-4 mr-2" /> 로그아웃
                     </Button>
@@ -478,7 +480,16 @@ function TeacherDashboard({ profile, onJoinGame, onBack }: any) {
   const [url, setUrl] = useState('');
   const [creating, setCreating] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [myGames, setMyGames] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const fetchGames = async () => {
+      const games = await firestoreService.getTeacherGames(profile.uid);
+      if (games) setMyGames(games);
+    };
+    fetchGames();
+  }, [profile.uid]);
 
   const handleCreate = async (selectedArt?: typeof DEFAULT_ARTWORKS[0]) => {
     const finalTitle = selectedArt?.title || title;
@@ -641,6 +652,33 @@ function TeacherDashboard({ profile, onJoinGame, onBack }: any) {
                 </div>
               </div>
             </Card>
+
+            {myGames.length > 0 && (
+              <div className="pt-8 space-y-6">
+                <div className="flex items-center gap-2">
+                  <Play className="w-6 h-6 text-slate-400" />
+                  <h4 className="text-xl font-black text-slate-900">최근 진행한 수업</h4>
+                </div>
+                <div className="space-y-3">
+                  {myGames.map((g) => (
+                    <Card 
+                      key={g.id} 
+                      className="p-4 rounded-2xl border-none shadow-md bg-white flex items-center justify-between group cursor-pointer hover:bg-slate-50 transition-all"
+                      onClick={() => onJoinGame(g.id)}
+                    >
+                      <div className="flex items-center gap-4">
+                        <img src={g.artworkUrl} className="w-12 h-12 rounded-lg object-cover" />
+                        <div>
+                          <p className="font-black text-slate-900">{g.artworkTitle}</p>
+                          <p className="text-xs font-bold text-slate-400">코드: {g.code}</p>
+                        </div>
+                      </div>
+                      <ArrowRight className="w-5 h-5 text-slate-200 group-hover:text-blue-600 transition-colors" />
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
