@@ -27,7 +27,8 @@ import {
   PenTool,
   Copy,
   CheckCircle2,
-  ChevronRight
+  ChevronRight,
+  UserCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
@@ -495,7 +496,15 @@ function TeacherDashboard({ profile, onJoinGame, onBack }: any) {
             </Button>
             <h2 className="text-4xl font-black tracking-tighter">수업 준비하기</h2>
           </div>
-          <Badge className="bg-slate-900 text-white px-6 py-2 rounded-full text-sm font-bold">선생님 모드</Badge>
+          <div className="flex items-center gap-3">
+            <div className="text-right hidden sm:block">
+              <p className="text-xs font-black text-slate-400 uppercase tracking-widest">LOGGED IN AS</p>
+              <p className="font-bold text-slate-900">{profile.name}</p>
+            </div>
+            <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center overflow-hidden">
+              <UserCircle className="w-8 h-8 text-slate-400" />
+            </div>
+          </div>
         </div>
 
         <div className="grid lg:grid-cols-5 gap-12">
