@@ -1,0 +1,84 @@
+{
+  "entities": {
+    "Game": {
+      "title": "Game",
+      "description": "Represents a game session created by a teacher.",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "description": "Unique 6-digit join code" },
+        "teacherId": { "type": "string", "description": "UID of the teacher who created the game" },
+        "status": { 
+          "type": "string", 
+          "enum": ["lobby", "describing", "voting", "results", "finished"],
+          "description": "Current phase of the game"
+        },
+        "currentRound": { "type": "number", "description": "Current round number (1-indexed)" },
+        "maxRounds": { "type": "number", "description": "Total number of rounds" },
+        "artworkUrl": { "type": "string", "description": "URL of the original artwork" },
+        "artworkTitle": { "type": "string", "description": "Title of the artwork" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["code", "teacherId", "status", "currentRound", "maxRounds", "artworkUrl", "createdAt"]
+    },
+    "Submission": {
+      "title": "Submission",
+      "description": "A student's description of the artwork for a specific round.",
+      "type": "object",
+      "properties": {
+        "gameId": { "type": "string" },
+        "roundNumber": { "type": "number" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "description": { "type": "string" },
+        "voteCount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["gameId", "roundNumber", "userId", "userName", "description", "voteCount", "createdAt"]
+    },
+    "RoundResult": {
+      "title": "RoundResult",
+      "description": "The outcome of a round, including the winning description and AI generated image.",
+      "type": "object",
+      "properties": {
+        "gameId": { "type": "string" },
+        "roundNumber": { "type": "number" },
+        "winningDescription": { "type": "string" },
+        "winningUserName": { "type": "string" },
+        "generatedImageUrl": { "type": "string" },
+        "aiFeedback": { "type": "string", "description": "AI feedback provided from round 2 onwards" }
+      },
+      "required": ["gameId", "roundNumber", "winningDescription", "winningUserName", "generatedImageUrl"]
+    },
+    "User": {
+      "title": "User",
+      "description": "User profile information.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["teacher", "student"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "email", "role", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/games/{gameId}": {
+      "schema": "Game",
+      "description": "Game session data"
+    },
+    "/games/{gameId}/submissions/{submissionId}": {
+      "schema": "Submission",
+      "description": "Student submissions for a game"
+    },
+    "/games/{gameId}/results/{resultId}": {
+      "schema": "RoundResult",
+      "description": "Results for each round"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    }
+  }
+}

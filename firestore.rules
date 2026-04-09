@@ -1,0 +1,120 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Fields:
+    //   - uid: string (required)
+    //   - name: string (required)
+    //   - email: string (required)
+    //   - role: string (required, 'teacher' | 'student')
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: games
+    // Fields:
+    //   - code: string (required)
+    //   - teacherId: string (required)
+    //   - status: string (required, 'lobby'|'describing'|'voting'|'results'|'finished')
+    //   - currentRound: number (required)
+    //   - maxRounds: number (required)
+    //   - artworkUrl: string (required)
+    //   - artworkTitle: string (required)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: games/{gameId}/submissions
+    // Fields:
+    //   - gameId: string (required)
+    //   - roundNumber: number (required)
+    //   - userId: string (required)
+    //   - userName: string (required)
+    //   - description: string (required)
+    //   - voteCount: number (required)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: games/{gameId}/results
+    // Fields:
+    //   - gameId: string (required)
+    //   - roundNumber: number (required)
+    //   - winningDescription: string (required)
+    //   - winningUserName: string (required)
+    //   - generatedImageUrl: string (required)
+    //   - aiFeedback: string (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "minha86ibo@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidUser(data) {
+      return data.uid == request.auth.uid &&
+             data.role in ['teacher', 'student'] &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100;
+    }
+
+    function isValidGame(data) {
+      return data.teacherId == request.auth.uid &&
+             data.status in ['lobby', 'describing', 'voting', 'results', 'finished'] &&
+             data.currentRound is number &&
+             data.maxRounds is number &&
+             data.artworkUrl is string &&
+             data.code is string && data.code.size() == 6;
+    }
+
+    function isValidSubmission(data) {
+      return data.userId == request.auth.uid &&
+             data.description is string && data.description.size() > 0 && data.description.size() < 2000 &&
+             data.voteCount == 0;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role;
+    }
+
+    match /games/{gameId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidGame(request.resource.data);
+      allow update: if isAuthenticated() && (
+        (request.auth.uid == resource.data.teacherId) || 
+        isAdmin()
+      );
+
+      match /submissions/{submissionId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() && isValidSubmission(request.resource.data);
+        allow update: if isAuthenticated() && (
+          // Allow voting: increment voteCount by 1
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['voteCount']) &&
+          request.resource.data.voteCount == resource.data.voteCount + 1
+        );
+      }
+
+      match /results/{resultId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() && (request.auth.uid == get(/databases/$(database)/documents/games/$(gameId)).data.teacherId || isAdmin());
+      }
+    }
+  }
+}
