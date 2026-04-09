@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { auth } from './firebase';
+import React, { useState, useEffect, useRef } from 'react';
+import { auth, db, storage } from './firebase';
 import { 
   onAuthStateChanged, 
   signInWithPopup, 
@@ -9,6 +9,8 @@ import {
   updateProfile,
   User as FirebaseUser
 } from 'firebase/auth';
+import { collection, onSnapshot, query, orderBy, limit, Timestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { 
   Palette, 
   Users, 
@@ -21,7 +23,8 @@ import {
   LogOut,
   Sparkles,
   MessageSquare,
-  Camera
+  Camera,
+  PenTool
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
@@ -72,6 +75,14 @@ interface RoundResult {
   generatedImageUrl: string;
   aiFeedback?: string;
 }
+
+// --- Constants ---
+const DEFAULT_ARTWORKS = [
+  { title: '별이 빛나는 밤 (고흐)', url: 'https://images.unsplash.com/photo-1578301978693-85fa9c0320b9?q=80&w=1000&auto=format&fit=crop' },
+  { title: '진주 귀걸이를 한 소녀 (베르메르)', url: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?q=80&w=1000&auto=format&fit=crop' },
+  { title: '절규 (뭉크)', url: 'https://images.unsplash.com/photo-1577083552431-6e5fd01aa342?q=80&w=1000&auto=format&fit=crop' },
+  { title: '모나리자 (다빈치)', url: 'https://images.unsplash.com/photo-1582555172866-f73bb12a2ab3?q=80&w=1000&auto=format&fit=crop' }
+];
 
 // --- Main App Component ---
 export default function App() {
@@ -315,7 +326,13 @@ function MainScreen({
               <p className="text-slate-500 font-medium mb-8">교사 계정으로 로그인하면 작품 선정 및 AI 피드백 관리가 가능합니다.</p>
               {user && profile?.role === 'teacher' ? (
                 <div className="space-y-4">
-                  <Button className="w-full bg-slate-900 text-white py-8 rounded-2xl text-xl font-bold" onClick={onCreateGame}>대시보드 이동</Button>
+                  <Button 
+                    className="w-full bg-orange-500 hover:bg-orange-600 text-white py-12 rounded-3xl text-2xl font-black shadow-2xl group flex items-center justify-center gap-3"
+                    onClick={onCreateGame}
+                  >
+                    <Sparkles className="w-8 h-8" />
+                    수업 시작하기
+                  </Button>
                   <Button variant="ghost" className="w-full text-slate-400 flex items-center justify-center gap-2" onClick={onLogout}>
                     <LogOut className="w-4 h-4" /> 로그아웃
                   </Button>
@@ -560,9 +577,15 @@ function TeacherDashboard({ profile, onJoinGame, onBack }: any) {
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
   const [creating, setCreating] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleCreate = async () => {
-    if (!title || !url) return alert("제목과 이미지를 입력하세요.");
+  const handleCreate = async (selectedArt?: typeof DEFAULT_ARTWORKS[0]) => {
+    const finalTitle = selectedArt?.title || title;
+    const finalUrl = selectedArt?.url || url;
+
+    if (!finalTitle || !finalUrl) return alert("작품을 선택하거나 이미지를 업로드해 주세요.");
+    
     setCreating(true);
     try {
       const code = Math.floor(100000 + Math.random() * 900000).toString();
@@ -572,8 +595,8 @@ function TeacherDashboard({ profile, onJoinGame, onBack }: any) {
         status: 'lobby',
         currentRound: 1,
         maxRounds: 3,
-        artworkUrl: url,
-        artworkTitle: title
+        artworkUrl: finalUrl,
+        artworkTitle: finalTitle
       });
       if (id) onJoinGame(id);
     } finally {
@@ -581,25 +604,122 @@ function TeacherDashboard({ profile, onJoinGame, onBack }: any) {
     }
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const storageRef = ref(storage, `artworks/${profile.uid}/${Date.now()}_${file.name}`);
+      const snapshot = await uploadBytes(storageRef, file);
+      const downloadUrl = await getDownloadURL(snapshot.ref);
+      setUrl(downloadUrl);
+      setTitle(file.name.split('.')[0]);
+      alert("이미지가 업로드되었습니다!");
+    } catch (error) {
+      console.error("Upload error:", error);
+      alert("이미지 업로드에 실패했습니다.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
-    <div className="max-w-2xl mx-auto py-20 px-6 space-y-10">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" onClick={onBack}><ArrowRight className="rotate-180" /></Button>
-        <h2 className="text-4xl font-black">새 게임 만들기</h2>
+    <div className="max-w-4xl mx-auto py-20 px-6 space-y-12">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" onClick={onBack} className="rounded-full">
+            <ArrowRight className="rotate-180" />
+          </Button>
+          <h2 className="text-4xl font-black tracking-tighter">수업 시작하기</h2>
+        </div>
+        <Badge className="bg-slate-900 text-white px-4 py-1 rounded-full">교사 모드</Badge>
       </div>
-      <Card className="p-10 space-y-6 rounded-[2.5rem] shadow-xl">
-        <div className="space-y-2">
-          <Label>작품 제목</Label>
-          <Input placeholder="예: 별이 빛나는 밤" value={title} onChange={e => setTitle(e.target.value)} className="h-14 rounded-xl" />
+
+      <div className="grid lg:grid-cols-2 gap-12">
+        {/* Left: Default Artworks */}
+        <div className="space-y-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Sparkles className="text-orange-500 w-5 h-5" />
+            <h3 className="text-xl font-bold">추천 미술 작품</h3>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            {DEFAULT_ARTWORKS.map((art, i) => (
+              <Card 
+                key={i} 
+                className="overflow-hidden rounded-2xl cursor-pointer hover:ring-4 hover:ring-orange-500 transition-all group relative"
+                onClick={() => handleCreate(art)}
+              >
+                <div className="aspect-[4/3] relative">
+                  <img src={art.url} alt={art.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" referrerPolicy="no-referrer" />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <Play className="text-white w-8 h-8" />
+                  </div>
+                </div>
+                <div className="p-3 bg-white">
+                  <p className="text-sm font-bold truncate">{art.title}</p>
+                </div>
+              </Card>
+            ))}
+          </div>
         </div>
-        <div className="space-y-2">
-          <Label>이미지 URL</Label>
-          <Input placeholder="https://..." value={url} onChange={e => setUrl(e.target.value)} className="h-14 rounded-xl" />
+
+        {/* Right: Custom Upload */}
+        <div className="space-y-6">
+          <div className="flex items-center gap-2 mb-4">
+            <PenTool className="text-slate-900 w-5 h-5" />
+            <h3 className="text-xl font-bold">새로운 작품 등록</h3>
+          </div>
+          <Card className="p-8 rounded-[2.5rem] shadow-xl border-dashed border-2 border-slate-200 bg-slate-50/50">
+            <div className="space-y-8">
+              <div 
+                className="aspect-video rounded-2xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center cursor-pointer hover:bg-white transition-colors overflow-hidden relative"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {url ? (
+                  <img src={url} alt="Preview" className="w-full h-full object-cover" />
+                ) : (
+                  <>
+                    <Camera className="w-12 h-12 text-slate-300 mb-2" />
+                    <p className="text-slate-400 font-medium">이미지 파일 불러오기</p>
+                  </>
+                )}
+                {uploading && (
+                  <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
+                    <Loader2 className="animate-spin text-slate-900" />
+                  </div>
+                )}
+              </div>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                className="hidden" 
+                accept="image/*" 
+                onChange={handleFileUpload} 
+              />
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="font-bold">작품 제목</Label>
+                  <Input 
+                    placeholder="작품의 이름을 입력하세요" 
+                    value={title} 
+                    onChange={e => setTitle(e.target.value)} 
+                    className="h-14 rounded-xl bg-white" 
+                  />
+                </div>
+                <Button 
+                  className="w-full py-8 text-xl rounded-2xl bg-slate-900" 
+                  onClick={() => handleCreate()} 
+                  disabled={creating || uploading || !url}
+                >
+                  {creating ? <Loader2 className="animate-spin" /> : "이 작품으로 시작하기"}
+                </Button>
+              </div>
+            </div>
+          </Card>
         </div>
-        <Button className="w-full py-8 text-xl rounded-2xl" onClick={handleCreate} disabled={creating}>
-          {creating ? <Loader2 className="animate-spin" /> : "게임 세션 생성"}
-        </Button>
-      </Card>
+      </div>
     </div>
   );
 }
