@@ -11,8 +11,8 @@ import {
   query, 
   where, 
   orderBy,
-  getDocFromServer,
-  Timestamp
+  Timestamp,
+  increment
 } from 'firebase/firestore';
 
 export enum OperationType {
@@ -63,17 +63,12 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     path
   }
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-}
-
-export async function testFirestoreConnection() {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if(error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration.");
-    }
+  // Surface a user-friendly error that also contains the technical details for debugging
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes('permission-denied') || message.includes('Missing or insufficient permissions')) {
+    alert(`권한 오류가 발생했습니다. (Firestore Security Rules 확인 필요)\n\n상세 정보: ${message}\n작업: ${operationType}\n경로: ${path}`);
   }
+  throw new Error(JSON.stringify(errInfo));
 }
 
 export const firestoreService = {
@@ -173,12 +168,9 @@ export const firestoreService = {
     const path = `games/${gameId}/submissions/${submissionId}`;
     try {
       const docRef = doc(db, 'games', gameId, 'submissions', submissionId);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        await updateDoc(docRef, {
-          voteCount: (snap.data().voteCount || 0) + 1
-        });
-      }
+      await updateDoc(docRef, {
+        voteCount: increment(1)
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
     }
@@ -187,7 +179,10 @@ export const firestoreService = {
   async saveResult(gameId: string, data: any) {
     const path = `games/${gameId}/results`;
     try {
-      await addDoc(collection(db, 'games', gameId, 'results'), data);
+      await addDoc(collection(db, 'games', gameId, 'results'), {
+        ...data,
+        createdAt: Timestamp.now()
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, path);
     }

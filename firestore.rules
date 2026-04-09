@@ -6,48 +6,20 @@ service cloud.firestore {
     // ===============================================================
     //
     // Collection: users
-    // Fields:
-    //   - uid: string (required)
-    //   - name: string (required)
-    //   - email: string (required)
-    //   - role: string (required, 'teacher' | 'student')
-    //   - createdAt: timestamp (required)
+    // Fields: uid, name, email, role, createdAt
     //
     // Collection: games
-    // Fields:
-    //   - code: string (required)
-    //   - teacherId: string (required)
-    //   - status: string (required, 'lobby'|'describing'|'voting'|'results'|'finished')
-    //   - currentRound: number (required)
-    //   - maxRounds: number (required)
-    //   - artworkUrl: string (required)
-    //   - artworkTitle: string (required)
-    //   - createdAt: timestamp (required)
+    // Fields: code, teacherId, status, currentRound, maxRounds, artworkUrl, artworkTitle, createdAt
     //
     // Collection: games/{gameId}/submissions
-    // Fields:
-    //   - gameId: string (required)
-    //   - roundNumber: number (required)
-    //   - userId: string (required)
-    //   - userName: string (required)
-    //   - description: string (required)
-    //   - voteCount: number (required)
-    //   - createdAt: timestamp (required)
+    // Fields: roundNumber, userId, userName, description, voteCount, createdAt
     //
     // Collection: games/{gameId}/results
-    // Fields:
-    //   - gameId: string (required)
-    //   - roundNumber: number (required)
-    //   - winningDescription: string (required)
-    //   - winningUserName: string (required)
-    //   - generatedImageUrl: string (required)
-    //   - aiFeedback: string (optional)
+    // Fields: roundNumber, winningDescription, winningUserName, generatedImageUrl, aiFeedback, createdAt
     //
     // ===============================================================
 
-    // ===============================================================
     // Helper Functions
-    // ===============================================================
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -62,6 +34,7 @@ service cloud.firestore {
          (request.auth.token.email == "minha86ibo@gmail.com" && request.auth.token.email_verified == true));
     }
 
+    // Domain Validators
     function isValidUser(data) {
       return data.uid == request.auth.uid &&
              data.role in ['teacher', 'student'] &&
@@ -83,10 +56,7 @@ service cloud.firestore {
              data.voteCount == 0;
     }
 
-    // ===============================================================
     // Rules
-    // ===============================================================
-
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId) && isValidUser(request.resource.data);
